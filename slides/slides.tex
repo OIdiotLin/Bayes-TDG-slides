@@ -1,0 +1,457 @@
+\documentclass{beamer}
+
+\usefonttheme[onlymath]{serif}
+
+\usepackage{xeCJK}
+\setCJKmainfont[BoldFont=Source Han Sans CN Bold, ItalicFont=Adobe Kaiti Std]{Source Han Serif CN}
+
+\usepackage{graphicx}
+
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+
+\usetheme{Madrid}
+
+\AtBeginSection[]{
+    \begin{frame}{目录}
+        \hfill
+        \parbox[t]{.95\textwidth}{
+            \begin{minipage}[c][0.75\textheight]{\textwidth}
+            \tableofcontents[currentsection, currentsection]
+            \end{minipage}
+        }
+    \end{frame}
+}
+
+
+\title{\textbf{Bayes-TDG: 一种针对错误检测效率提升与覆盖率最大化，基于贝叶斯信念网络的测试数据生成方法}}
+\author{林会东}
+\institute{\textit{华南理工大学~软件学院}}
+\date{2019 年 5 月 10 日}
+
+\begin{document}
+    \frame{\titlepage}
+
+    \section{摘要}
+
+    \subsection{论文信息}
+    \begin{frame}{论文信息}
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.9\textwidth]{images/title.png}
+        \end{figure}
+        \begin{itemize}
+            \item 本文撰写于 2017 年，并在 2018 年二月登载于 \textit{IET Software}。
+            \item 本研究工作由伊朗科学技术大学计算机工程学院主导推进。
+        \end{itemize}
+    \end{frame}
+
+    \subsection{论文摘要}
+    \begin{frame}{论文摘要}
+        本文提出了一种新的测试数据生成方法——\textbf{Bayes-TDG}，该方法使用的模型主要基于：
+        \begin{block}{}
+            \begin{itemize}
+                \item 贝叶斯网络
+            \end{itemize}
+        \end{block}
+
+        Bayes-TDG 能够对以下元素的条件依赖进行建模：
+        \begin{block}{}
+            \begin{itemize}
+                \item 程序中的基础语句块
+                \item 基础语句块与输入参数
+            \end{itemize}
+        \end{block}
+    \end{frame}
+
+    \section{前导知识}
+
+    \subsection{主路径}
+    \begin{frame}{主路径}
+        \begin{columns}[T]
+        \begin{column}{.52\textwidth}
+                
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=0.95\textwidth]{images/path.png}
+                \caption{控制流图}
+                \label{fig:prime-path}
+            \end{figure}
+        \end{column}
+        \begin{column}{.45\textwidth}
+            \only<1>{
+                \begin{block}{定义}
+                    \begin{itemize}
+                    \item \textbf{简单路径} 是\textbf{不包含内环}的路径
+                    \item \textbf{主路径} 是一个简单路径，且该路径\textbf{不是}其他任何简单路径的子路径
+                    \end{itemize}
+                \end{block}
+            }
+            \only<2>{
+                \begin{block}{主路径}
+                    \begin{itemize}
+                        \item $1\rightarrow 2\rightarrow 3\rightarrow 4\rightarrow 5\rightarrow 6$
+                        \item $1\rightarrow 2\rightarrow 7\rightarrow 5\rightarrow 6$
+                        \item $1\rightarrow 3\rightarrow 5\rightarrow 6$
+                        \item $3\rightarrow 4\rightarrow 3$
+                        \item $\ldots$
+                    \end{itemize}
+                \end{block}
+            }
+        \end{column}
+        \end{columns}
+    \end{frame}
+
+    \subsection{贝叶斯网络}
+    \begin{frame}{贝叶斯网络(Bayesian Network)}
+        \begin{columns}[T]
+        \begin{column}{.6\textwidth}
+            \begin{block}{定义}
+                \textbf{贝叶斯网络}，又称\textbf{信念网络}，是一种概率图模型。它依靠\textbf{有向无
+                环图(DAG)}表达一组随机变量$\{X_1, X_2,\ldots,X_n\}$及其$n$组条件依赖的性质。
+            \end{block}
+        \end{column}
+        \begin{column}{.38\textwidth}
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=0.9\textwidth]{images/SimpleBayesNet-node.png}
+                \caption{贝叶斯网络示例}
+                \label{fig:bayesnet-example}
+            \end{figure}
+        \end{column}
+        \end{columns}
+        \vspace{1cm}
+        $$P(G,S,R)=P(G|S,R)P(S|R)P(R)$$
+    \end{frame}
+
+    \section{其他方法}
+    
+    \subsection{符号执行}
+    \begin{frame}{符号执行(Symbolic Execution)}
+        \begin{block}{优点}
+            \begin{itemize}
+                \item 能够有效地搜索出程序执行的所有可行路径
+            \end{itemize}
+        \end{block}
+        \begin{alertblock}{缺点}
+            \begin{itemize}
+                \item 在约束求解器的支持下工作，因此无法推理约束求解器不支持的复杂代码片段
+                \item 推理\textit{循环}或\textit{递归}结构时，必须限制搜索深度。这会导致不完整的推理，
+                      从而可能弱化检测潜在错误的能力
+                \item 由于程序路径空间的组合爆炸问题，符号执行性能受限
+            \end{itemize}
+        \end{alertblock}
+    \end{frame}
+
+    \subsection{基于搜索的测试}
+    \begin{frame}{基于搜索的测试(Search-based Testing)}
+        各类遗传算法
+        \begin{block}{优点}
+            \begin{itemize}
+                \item 可以处理各种基本输入类型，例如整数和浮点数
+                \item 使用适应度函数(fitness function)，可用于改进动态符号执行
+            \end{itemize}
+        \end{block}
+        \begin{alertblock}{缺点}
+            \begin{itemize}
+                \item 使用启发式搜索来产生测试输入，而这个过程通常是完全随机的
+                \item 在复杂的大型软件中运行成本高昂，需要相当多的计算资源
+            \end{itemize}
+        \end{alertblock}
+    \end{frame}
+
+    \section{Bayes-TDG}
+
+    \begin{frame}{Bayes-TDG}
+        \begin{figure}
+            \centering
+            \includegraphics[width=.9\textwidth]{images/flowchart-of-TDG.jpg}
+            \caption{Bayes-TDG 工作流程图。
+                     从左至右第一列为预处理阶段，
+                     第二列为构建 TDG-NET 阶段，
+                     第三列为测试数据生成阶段。}
+            \label{fig:bayes-TDG-flowchart}
+        \end{figure}
+    \end{frame}
+
+    \subsection{预处理阶段}
+
+    \begin{frame}{预处理阶段}
+        \begin{columns}[T]
+        \begin{column}{.35\textwidth}
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=.9\textwidth]{images/flowchart-of-TDG-1.jpg}
+                \caption{Bayes-TDG 预处理阶段}
+                \label{fig:bayes-TDG-flowchart-1}
+            \end{figure}
+        \end{column}
+        \begin{column}{.63\textwidth}
+            \begin{enumerate}
+                \item 将被测程序(PUT, Programme Under Test)翻译成汇编代码\pause
+                \item 确定汇编代码中的跳转目标并对其进行排序，跳转目标即基础块的开始，
+                      跳转语句即基础块的结束\pause
+                \item 根据基础块中的跳转关系(i)labels,(ii)函数调用,(iii)函数调用后语句,(iv)
+                      条件分支后的语句，将基础块连接成控制流图\pause
+                \item 为了捕获被测程序运行时行为，需要在程序执行中插入一些``探针''，通常是能
+                      产生记录的一小段代码，表示该基础块被执行了
+            \end{enumerate}
+        \end{column}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}{预处理阶段 - 生成控制流图}
+        \begin{figure}[!ht]
+            \centering
+            \includegraphics[width=.95\textwidth]{images/excerpt-of-CFG.jpg}
+            \caption{生成控制流图的三种模式：(a)函数调用; (b)条件跳跃; (c)非条件跳跃}
+            \label{fig:excerpt-of-CFG}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}{预处理 - 生成控制流图~举例}
+        \begin{columns}[T]
+        \begin{column}{.4\textwidth}
+            \only<1>{
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.8\textwidth]{images/sample-code.jpg}
+                    \label{fig:sample-code}
+                \end{figure}
+            }
+            \only<2>{
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.9\textwidth]{images/sample-cfg.jpg}
+                    \label{fig:sample-CFG}
+                \end{figure}
+            }
+        \end{column}
+        \begin{column}{.55\textwidth}
+            \begin{block}{基础块}
+                \begin{columns}[T]
+                    \begin{column}{.45\textwidth}
+                        \begin{itemize}
+                            \item BB1: (1)-(3)
+                            \item BB2: (9)
+                            \item BB3: (15)
+                            \item BB4: (4)
+                            \item BB5: (5)
+                            \item BB6: (7)
+                            \item BB7: (10)
+                            \item BB8: (11)
+                        \end{itemize}
+                    \end{column}
+                    \begin{column}{.45\textwidth}
+                        \begin{itemize}
+                            \item BB9: (13)
+                            \item BB10: (16)
+                            \item BB11: (17)
+                            \item BB12: (18)
+                            \item BB13: (20)
+                            \item BB14: (22)
+                            \item BB15: (23)
+                        \end{itemize}
+                    \end{column}
+                \end{columns}
+            \end{block}
+        \end{column}
+        \end{columns}
+    \end{frame}
+
+
+    \subsection{构建 TDG-NET}
+    
+    \begin{frame}{TDG-NET 性质}
+        \hspace{2em}TDG-NET 具有贝叶斯网络的特性，与贝叶斯网络不同的是，\textbf{CFG 不是一个 DAG}。CFG中存在的环会导致无穷
+        多条路径，要想覆盖无穷多条路径是不可能的！
+
+        \hspace{2em}而\textbf{主路径是一个 DAG}，因此可以用贝叶斯网络表达出被测程序的所有主路径。
+    \end{frame}
+
+    \begin{frame}{TDG-NET 性质}
+        \begin{figure}[t]
+            \centering
+            \includegraphics[width=0.6\textwidth]{images/pp-with-loop.jpg}
+        \end{figure}
+        对于 CFG 的所有主路径中的 \textit{边} $e$，它被两种元素影响：
+        \begin{block}{以$4\rightarrow5$为例}
+            \begin{itemize}
+                \item 前缀边 $e^\prime(3\rightarrow4)$
+                \item 输入参数
+            \end{itemize}
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{TDG-NET 性质}
+        由于输入参数的值域很广，本文无法直接考虑对 $e$ 有影响的所有潜在的输入。于是本文将输入参数$[x_i, x_j]$分割成$k$个
+        \textbf{区域}(region)。
+
+        \vspace{2em}
+
+        对于非基础数据类型(如字符或字符串)，本文将生成若干条数据，并对其进行分类，每一种类别对应一个区域。
+    \end{frame}
+    
+    \begin{frame}{构建 TDG-NET}
+        TDG-NET 中的节点 $v$ 由以下两类组成：
+
+        \begin{block}{}
+            \begin{itemize}
+                \item CFG 中的边
+                \item 输入参数的区域
+            \end{itemize}
+        \end{block}
+        \pause
+
+        根据以上节点定义，对于 $v$，其父节点由两组节点构成：
+        \begin{block}{}
+            \begin{itemize}
+                \item CFG中紧接在$v$之前出现的边。
+                \item 输入参数的所有区域，例如该处输入共有$m$个，每个参数被划分成了$n$个区域，则$v$的父节点中就有$m\times n$ 个表示输入参数。
+            \end{itemize}
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{构建 TDG-NET}
+        由于贝叶斯网络是个无环图，为了避免环的产生，在给 TDG-NET 添加新节点时，需要使用\textbf{拓扑排序}判环。
+    \end{frame}
+
+    \begin{frame}{构建 TDG-NET 举例}
+        \begin{columns}[T]
+            \begin{column}{.35\textwidth}
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.9\textwidth]{images/sample-cfg.jpg}
+                    \caption{CFG}
+                \end{figure}
+            \end{column}
+            \begin{column}{.63\textwidth}
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.95\textwidth]{images/sample-TDG-NET.jpg}
+                    \caption{TDG-NET。$i,j,k$是输入参数区域节点，是上面所有节点的父节点，为了简化已省略。例如节点\textit{13:10-11}，
+                             \textit{13}表示该节点在TDG-NET中ID为\textit{13}，\textit{10-11}表示该节点代表的CFG边是CFG中10号点到
+                             11号点的边。}
+                \end{figure}
+            \end{column}
+        \end{columns}   
+    \end{frame}
+
+    \begin{frame}{构建 TDG-NET}
+        对于输入参数 $x$，父节点$x_1$($x$所属的参数区域)与$v$的条件依赖性表示：
+
+        \begin{itemize}
+            \item 如果使用从$x_1$生成的数据执行测试程序，则执行到$v$的可能性。
+        \end{itemize}
+
+        \vspace{2em}
+        那么，$x_1$和$v$之间的条件依赖性越高，则使用从$x_1$生成的数据执行到 $v$ 的可能性就越高。这是一个可以使用 TDG-NET 进行的推断。
+    \end{frame}
+
+    \begin{frame}{初始化 TDG-NET}
+        要初始化上一步中生成的 TDG-NET，本文需要：
+        
+        \begin{enumerate}
+            \item 生成输入参数的所有不同排列，然后从每个排列中随机生成许多测试数据。
+            \item 将这些测试数据输入给被测程序，并捕获执行的路径。
+            \item 统计每个节点执行的频率。对于每个边$e$，识别导致$e$被执行的所有输入参数区域。
+        \end{enumerate}
+    \end{frame}
+
+    \begin{frame}{初始化 TDG-NET}
+        为了计算主路径覆盖率，本文需要知道\textbf{被覆盖的主路径条数}与\textbf{CFG中主路径的总数}。显然，在上一步中得到
+        的许多路径是重复的。
+
+        \vspace{1em}
+
+        为了描述从 TDG-NET 提取的主路径，本文提出了 \textbf{TDG-Tree} 的二叉树结构，从而有效地执行搜索和检索路径的操作。
+
+        \begin{columns}[T]
+            \begin{column}{.35\textwidth}
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.9\textwidth]{images/sample-cfg.jpg}
+                \end{figure}
+            \end{column}
+            \begin{column}{.5\textwidth}
+                \begin{figure}[!ht]
+                    \centering
+                    \includegraphics[width=.95\textwidth]{images/sample-TDG-Tree.jpg}
+                \end{figure}
+            \end{column}
+        \end{columns} 
+    \end{frame}
+
+    \subsection{生成测试数据}
+
+    \begin{frame}{生成测试数据}
+        为了有效地实现失败检测，本文提出了一种基于生成测试数据结果的路径选择策略。
+        \begin{block}{失败测试用例}
+            \begin{itemize}
+                \item 假设在初始测试时已经识别出至少一个失败测试$t_f$
+                \item 执行跟踪每个生成的测试用例，将得到的语句块覆盖向量$t_i$与$t_f$进行比较
+                \item 如果$t_i$与$t_f$的\textit{汉明距离}\footnote{等维向量之间的汉明距离是将一个向量变为另一个向量所需的最小
+                操作数}小于某个阈值，则$t_i$的执行被预测为失败；否则，$t_i$是成功的。
+            \end{itemize}
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{生成测试数据}
+        \begin{figure}[!ht]
+            \centering
+            \includegraphics[width=0.8\textwidth]{images/algorithm.jpg}
+            \caption{TDG-NET 算法}
+            \label{fig:algorithm}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}{更新输入参数区域}
+        \hspace{2em} 前文中提到，将输入参数划分为若干区域是由测试人员手动执行的，这仅仅依赖于测试人员对程序结构的理解。但是，在某些
+        情况下，这样生成的数据可能是冗余的。
+
+        \hspace{2em} 为了缓解此问题，可以考虑更新输入参数区域，来避免生成重复的路径。通过检查输入参数区域的覆盖路径的频率，本文发现
+        
+        \begin{block}{}
+            \begin{itemize}
+                \item \textit{区域的某些排列通常会导致某些路径的重复执行}(fruitless)
+                \item \textit{大多数的路径覆盖，是使用某些区域的特定排列的测试数据产生的}(fruitful)
+            \end{itemize}
+        \end{block}
+
+        \hspace{2em} 因此，\textbf{将fruitful的区域划分为更小、更准确的子区域，并将fruitless的区域合并成更大的区域}，可以提升网络的有效性，改进其性能。
+    \end{frame}
+
+    \section{实验结果}
+    
+    \begin{frame}{实验结果}
+        \only<1>{
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=.95\textwidth]{images/description-programmes.png}
+            \end{figure}
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=.95\textwidth]{images/compare-table.png}
+            \end{figure}
+        }
+        \only<2>{
+            \begin{figure}[!ht]
+                \centering
+                \includegraphics[width=.95\textwidth]{images/diagram-result.jpg}
+            \end{figure}
+        }
+    \end{frame}
+
+    \section{心得体会}
+    \begin{frame}{心得体会}
+        \hspace{2em}机器学习算法在测试中的应用目前较为成熟的就是选择/生成测试用例集，采用朴素的贝叶斯网络既能获得此效果。
+
+        \hspace{2em}那么是否可以利用软件测试这种结构化的特征，在测试工程的其他方面采用机器学习的方法，提升测试的自推理能
+        力，减少测试人员的工作负担呢？
+    \end{frame}
+
+    \begin{frame}
+        \centering
+        \Huge{谢谢！}
+    \end{frame}
+\end{document} 
